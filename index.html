@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRWAZ Store | متجر برواز</title>
-    <link rel="icon" href="https://github.com/brwazstor/brwazstor.github.io/blob/main/photos/icon.webp?raw=true" type="image/webp">
+    <!-- تم تصحيح رابط الأيقونة ليعمل على كل المتصفحات -->
+    <link rel="icon" href="https://raw.githubusercontent.com/brwazstor/brwazstor.github.io/main/photos/icon.webp" type="image/webp">
     <style>
         /* المتغيرات والألوان المتدرجة (Gradients) */
         :root {
@@ -77,6 +78,7 @@
             height: 45px;
             border-radius: 50%;
             box-shadow: 0 0 15px var(--primary);
+            object-fit: cover;
         }
 
         .logo-container h1 {
@@ -209,9 +211,11 @@
             display: block;
             object-fit: cover;
             border-bottom: 1px solid var(--border-dark);
+            min-height: 200px;
+            background: #2a2a2a; /* لون خلفية لحين تحميل الصورة */
         }
         
-        body.light-mode .product-card img { border-bottom: 1px solid var(--border-light); }
+        body.light-mode .product-card img { border-bottom: 1px solid var(--border-light); background: #eee;}
 
         .product-info {
             padding: 15px;
@@ -257,6 +261,8 @@
             width: 90%;
             text-align: center;
             position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         body.light-mode .modal-content {
@@ -266,9 +272,10 @@
 
         .modal-content img {
             max-width: 100%;
-            max-height: 50vh;
+            max-height: 40vh;
             border-radius: 10px;
             margin-bottom: 15px;
+            object-fit: contain;
         }
 
         .close-modal {
@@ -307,7 +314,7 @@
 
     <header>
         <div class="logo-container">
-            <img src="https://github.com/brwazstor/brwazstor.github.io/blob/main/photos/icon.webp?raw=true" alt="BRWAZ Icon">
+            <img src="https://raw.githubusercontent.com/brwazstor/brwazstor.github.io/main/photos/icon.webp" alt="BRWAZ Icon">
             <h1>BRWAZ</h1>
         </div>
         <div class="controls">
@@ -350,6 +357,8 @@
     </div>
 
     <script>
+        const CACHE_KEY = 'brwaz_data_v2'; // تم تغيير الاسم لمسح الكاش القديم الخربان
+
         // إعدادات المتصفح المحفوظة (Theme & Lite mode)
         const initSettings = () => {
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
@@ -377,42 +386,55 @@
 
         initSettings();
 
-        // نظام جلب وعرض المنتجات مع التخزين المؤقت (Cache) للسرعة
+        // نظام جلب وعرض المنتجات
         let allProducts = [];
 
         const loadProducts = async () => {
-            // 1. عرض البيانات المخزنة فوراً إن وجدت (يمنع التعليق)
-            const cached = localStorage.getItem('brwaz_data');
+            // مسح الكاش القديم الخربان من جهازك
+            localStorage.removeItem('brwaz_data');
+
+            const cached = localStorage.getItem(CACHE_KEY);
             if(cached) {
-                allProducts = JSON.parse(cached);
-                renderCategories();
-                renderGrid('الكل');
-                checkUrlForProduct();
+                try {
+                    allProducts = JSON.parse(cached);
+                    // تجاهل الكاش إذا كانت البيانات خربانة
+                    if(allProducts.length > 0 && !allProducts[0].name) throw new Error("Bad cache");
+                    renderCategories();
+                    renderGrid('الكل');
+                    checkUrlForProduct();
+                } catch(e) {
+                    allProducts = [];
+                }
             }
 
-            // 2. جلب البيانات الجديدة في الخلفية بصمت
             try {
-                // وضعنا الدالة لإجبار المتصفح على عدم قراءة كاش قديم جداً من السيرفر
+                // جلب البيانات الجديدة وتحديثها
                 const res = await fetch('products.json?v=' + new Date().getTime());
                 const data = await res.json();
                 
-                // تحديث العرض فقط إذا كان هناك تغيير لعدم إزعاج المستخدم
-                if(JSON.stringify(data) !== cached) {
-                    allProducts = data;
-                    localStorage.setItem('brwaz_data', JSON.stringify(data));
-                    renderCategories();
-                    renderGrid('الكل');
+                // التأكد أن البيانات ليست فارغة أو خربانة قبل حفظها
+                if (data && Array.isArray(data)) {
+                    const validData = data.filter(p => p && p.name && p.image);
+                    
+                    if(JSON.stringify(validData) !== cached) {
+                        allProducts = validData;
+                        localStorage.setItem(CACHE_KEY, JSON.stringify(validData));
+                        renderCategories();
+                        renderGrid('الكل');
+                    }
                 }
             } catch (e) {
-                console.log("استخدام البيانات المخزنة محلياً بسبب ضعف الاتصال.");
+                console.log("خطأ في جلب البيانات:", e);
             }
         };
 
         const renderCategories = () => {
             const container = document.getElementById('categoryContainer');
-            // استخراج الفئات الفريدة
+            if (allProducts.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
             const categories = ['الكل', ...new Set(allProducts.map(p => p.category || 'عام'))];
-            
             container.innerHTML = categories.map(cat => 
                 `<button class="cat-btn ${cat === 'الكل' ? 'active' : ''}" onclick="filterCategory('${cat}', this)">${cat}</button>`
             ).join('');
@@ -426,12 +448,16 @@
 
         const renderGrid = (filterCat) => {
             const grid = document.getElementById('productGrid');
+            if (allProducts.length === 0) {
+                grid.innerHTML = '<p style="text-align:center; width:100%; grid-column: 1 / -1;">لا توجد منتجات حالياً.</p>';
+                return;
+            }
+
             const filtered = filterCat === 'الكل' ? allProducts : allProducts.filter(p => (p.category || 'عام') === filterCat);
             
             grid.innerHTML = filtered.map(p => `
                 <div class="product-card" onclick="openModal('${p.id}')">
-                    <!-- استخدام loading="lazy" للتحميل الذكي للصور -->
-                    <img src="${p.image}" alt="${p.name}" loading="lazy">
+                    <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.src='https://raw.githubusercontent.com/brwazstor/brwazstor.github.io/main/photos/icon.webp';">
                     <div class="product-info">
                         <h3>${p.name}</h3>
                         <div class="price">${p.price}</div>
@@ -451,11 +477,9 @@
             document.getElementById('modalPrice').innerText = product.price;
             document.getElementById('modalDesc').innerText = product.description || '';
             
-            // تحديث الرابط بدون إعادة تحميل الصفحة
             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + id;
             window.history.pushState({path:newUrl}, '', newUrl);
 
-            // تجهيز رسالة الواتساب
             const msg = encodeURIComponent(`مرحباً متجر برواز، أريد طلب:\n${product.name}\nالسعر: ${product.price}\nالرابط: ${newUrl}`);
             document.getElementById('modalOrder').href = `https://wa.me/967782605206?text=${msg}`;
 
@@ -474,7 +498,7 @@
             if(id) setTimeout(() => openModal(id), 500);
         };
 
-        // نظام مراقبة الأداء (FPS Monitor)
+        // نظام مراقبة الأداء
         let lastTime = performance.now();
         let frames = 0;
         let lowFpsCount = 0;
@@ -500,7 +524,6 @@
             requestAnimationFrame(checkPerformance);
         };
 
-        // التشغيل
         loadProducts();
         requestAnimationFrame(checkPerformance);
 
