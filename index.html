@@ -389,7 +389,7 @@
 
         .modal-content {
             background: var(--card-dark);
-            border: 1px solid var(--primary);
+            border: 1px solid var(--border-dark);
             padding: 25px;
             border-radius: 20px;
             max-width: 500px;
@@ -398,8 +398,83 @@
             position: relative;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
+
+        /* --- نظام السلايدر (Carousel) الفخم --- */
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 40vh;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3) inset;
+        }
+        .carousel-item {
+            display: none;
+            width: 100%;
+            height: 100%;
+            animation: fadeEffect 0.5s ease-in-out;
+        }
+        .carousel-item.active {
+            display: block;
+        }
+        .carousel-item img, .carousel-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .carousel-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.6);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+        .carousel-btn:hover { background: var(--primary); color: #fff; }
+        .carousel-btn.prev { left: 10px; }
+        .carousel-btn.next { right: 10px; }
+        .carousel-dots {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .dot.active {
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+        }
+        @keyframes fadeEffect {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+        /* ------------------------------------- */
 
         body.light-mode .modal-content {
             background: #fff;
@@ -500,8 +575,10 @@
 
     <div class="modal" id="productModal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
-            <img id="modalImg" src="" alt="Product">
+            <button class="close-modal" onclick="closeModal()">×</button>
+            <div id="carouselContainer" class="carousel-container">
+                <!-- الصور والفيديو ستضاف هنا برمجياً -->
+            </div>
             <h2 id="modalTitle"></h2>
             <h3 id="modalPrice" class="price" style="color:var(--primary); margin:10px 0;"></h3>
             <p id="modalDesc"></p>
@@ -607,7 +684,7 @@
         const renderGrid = (filterCat) => {
             const grid = document.getElementById('productGrid');
             if (allProducts.length === 0) {
-                grid.innerHTML = '<p style="text-align:center; width:100%; grid-column: 1 / -1; font-size:1.2rem;">لا توجد منتجات حالياً، المتجر قيد التجهيز 🖼️</p>';
+                grid.innerHTML = '<p style="text-align:center; width:100%; grid-column: 1 / -1;">لا توجد منتجات حالياً.</p>';
                 return;
             }
 
@@ -625,29 +702,78 @@
             `).join('');
         };
 
-        /* */
+        // نظام النافذة والروابط والسلايدر
+        let currentMedia = [];
+        let currentSlide = 0;
+
         const openModal = (id) => {
             const product = allProducts.find(p => p.id === id);
             if(!product) return;
 
-            document.getElementById('modalImg').src = product.image;
             document.getElementById('modalTitle').innerText = product.name;
             document.getElementById('modalPrice').innerText = product.price;
             document.getElementById('modalDesc').innerText = product.description || '';
             
+            // تجهيز السلايدر
+            currentMedia = product.media && product.media.length > 0 ? product.media : [{type: 'image', url: product.image}];
+            currentSlide = 0;
+            renderCarousel();
+            
             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?id=' + id;
             window.history.pushState({path:newUrl}, '', newUrl);
 
-            const msg = encodeURIComponent(`مرحباً متجر برواز، أريد طلب:\n*${product.name}*\nالسعر: ${product.price}\nالرابط: ${newUrl}`);
+            const msg = encodeURIComponent(`مرحباً متجر برواز، أريد طلب:\n${product.name}\nالسعر: ${product.price}\nالرابط: ${newUrl}`);
             document.getElementById('modalOrder').href = `https://wa.me/967782605206?text=${msg}`;
 
             document.getElementById('productModal').classList.add('show');
-            document.body.style.overflow = 'hidden'; // منع تمرير الصفحة بالخلف
+        };
+
+        const renderCarousel = () => {
+            const container = document.getElementById('carouselContainer');
+            if (currentMedia.length <= 1) {
+                container.innerHTML = generateMediaHTML(currentMedia[0], true);
+            } else {
+                let html = currentMedia.map((m, i) => generateMediaHTML(m, i === currentSlide)).join('');
+                html += `<button class="carousel-btn prev" onclick="changeSlide(-1)">❮</button>
+                         <button class="carousel-btn next" onclick="changeSlide(1)">❯</button>
+                         <div class="carousel-dots">
+                            ${currentMedia.map((m, i) => `<span class="dot ${i === currentSlide ? 'active' : ''}" onclick="goToSlide(${i})"></span>`).join('')}
+                         </div>`;
+                container.innerHTML = html;
+            }
+        };
+
+        const generateMediaHTML = (media, isActive) => {
+            const activeClass = isActive ? 'active' : '';
+            if (media.type === 'video') {
+                return `<div class="carousel-item ${activeClass}"><video controls ${isActive ? 'autoplay' : ''} loop playsinline><source src="${media.url}" type="video/mp4"></video></div>`;
+            }
+            return `<div class="carousel-item ${activeClass}"><img src="${media.url}" alt="Product Media"></div>`;
+        };
+
+        const changeSlide = (step) => {
+            const oldVideo = document.querySelector('.carousel-item.active video');
+            if(oldVideo) oldVideo.pause();
+
+            currentSlide += step;
+            if (currentSlide >= currentMedia.length) currentSlide = 0;
+            if (currentSlide < 0) currentSlide = currentMedia.length - 1;
+            renderCarousel();
+        };
+
+        const goToSlide = (index) => {
+            const oldVideo = document.querySelector('.carousel-item.active video');
+            if(oldVideo) oldVideo.pause();
+            
+            currentSlide = index;
+            renderCarousel();
         };
 
         const closeModal = () => {
+            const video = document.querySelector('.carousel-item.active video');
+            if(video) video.pause(); // إيقاف الفيديو عند الإغلاق
+            
             document.getElementById('productModal').classList.remove('show');
-            document.body.style.overflow = '';
             const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.pushState({path:cleanUrl}, '', cleanUrl);
         };
