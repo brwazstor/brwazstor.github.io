@@ -492,14 +492,19 @@
 
         .close-modal {
             position: absolute;
-            top: 15px; right: 15px;
-            background: rgba(255,0,0,0.1); border: 1px solid rgba(255,0,0,0.3);
-            color: #ff4757; width: 35px; height: 35px; border-radius: 50%;
+            top: -15px; right: -15px; /* تم إخراج الزر خارج الإطار لكي لا يغطي الصورة */
+            background: #ff4757; 
+            border: 2px solid #fff;
+            color: #fff; 
+            width: 35px; height: 35px; 
+            border-radius: 50%;
             font-size: 1.2rem; cursor: pointer;
             display: flex; justify-content: center; align-items: center;
-            transition: background 0.3s;
+            transition: transform 0.2s, background 0.3s;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
-        .close-modal:hover { background: #ff4757; color: #fff; }
+        .close-modal:hover { transform: scale(1.1) rotate(90deg); background: #ff6b81; }
 
         .order-btn {
             display: flex;
